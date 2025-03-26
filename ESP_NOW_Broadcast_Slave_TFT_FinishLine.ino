@@ -85,19 +85,24 @@ void printTouchToDisplay(int touchX, int touchY, int touchZ) {
   tft.drawCentreString(tempText, centerX, textY, FONT_SIZE);
 }
 
+void displayToggleGate() {
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawCentreString("Toggle start gate to establish connection. ", 155, 20, 2);
+}
+
 void displayReady() {
   tft.setTextColor(TFT_RED, TFT_BLACK);
-  tft.drawCentreString("Ready... ", 50, 30, FONT_SIZE);
+  tft.drawCentreString("Ready... ", 90, 50, FONT_SIZE);
 }
 
 void displaySet() {
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  tft.drawCentreString("set...", 135, 30, FONT_SIZE);
+  tft.drawCentreString("set...", 175, 50, FONT_SIZE);
 }
 
 void displayGo() {
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.drawCentreString("GO!", 200, 30, FONT_SIZE);
+  tft.drawCentreString("Go!", 240, 50, FONT_SIZE);
 }
 
 
@@ -173,6 +178,7 @@ void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, i
     Serial.printf("Unknown peer " MACSTR " sent a broadcast message\n", MAC2STR(info->src_addr));
     Serial.println("Registering the peer as a master");
     commEstablished = true;
+    tft.fillScreen(TFT_BLACK);
     displayReady();
     ESP_NOW_Peer_Class new_master(info->src_addr, ESPNOW_WIFI_CHANNEL, WIFI_IF_STA, NULL);
 
@@ -278,6 +284,9 @@ String getDefaultMacAddress() {
   }
   pinMode(readyLED, OUTPUT);
   resetSwitch.setDebounceTime(50);
+  if (commEstablished == false) {
+    displayToggleGate();
+  }
 }
 
 void loop() {
@@ -295,7 +304,7 @@ void loop() {
       char buffer[32];
       sprintf(buffer, "Lane %1d: %7.3fs", (i+1), (elapsedTime[i] / 1000.0));
       tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);
-      tft.drawCentreString(buffer, 130, 60 + (finishedRacerCount * 30), FONT_SIZE);
+      tft.drawCentreString(buffer, 150, 70 + (finishedRacerCount * 30), FONT_SIZE);
     }
   }
 
