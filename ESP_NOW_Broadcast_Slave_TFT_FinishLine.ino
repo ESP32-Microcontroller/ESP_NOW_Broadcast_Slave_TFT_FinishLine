@@ -43,12 +43,14 @@ long elapsedTime[LANES];
 int breakBeamPin[LANES] = {6, 7};
 int finishLineLED[LANES] = {9, 10};
 int readyLED = 11;
+int raceActiveLED = 8;
 bool scoresReported = false;
 bool allFinished = false;
 bool allAtGate = false;
 bool commEstablished = false;
 ezButton resetSwitch(3);
 int finishedRacerCount;
+int heatNumber = 0;
 
 // Touchscreen coordinates: (x, y) and pressure (z)
 int x, y, z;
@@ -87,22 +89,36 @@ void printTouchToDisplay(int touchX, int touchY, int touchZ) {
 
 void displayToggleGate() {
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawCentreString("Toggle start gate to establish connection. ", 155, 20, 2);
+  tft.drawCentreString("Toggle start gate to establish connection. ", 160, 20, 2);
 }
 
 void displayReady() {
   tft.setTextColor(TFT_RED, TFT_BLACK);
-  tft.drawCentreString("Ready... ", 90, 50, FONT_SIZE);
+  tft.drawString("Ready... ", 45, 30, FONT_SIZE);
 }
 
 void displaySet() {
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  tft.drawCentreString("set...", 175, 50, FONT_SIZE);
+  tft.drawString("Set...", 150, 30, FONT_SIZE);
 }
 
 void displayGo() {
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.drawCentreString("Go!", 240, 50, FONT_SIZE);
+  tft.drawString("Go!", 225, 30, FONT_SIZE);
+}
+
+void displayHeatNumber() {
+  tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);
+  char buffer[32];
+  sprintf(buffer, "Heat: %1d", heatNumber);
+  tft.drawString(buffer, 45, 70, FONT_SIZE);
+}
+
+void displayLaneTime(int lane) {
+  char buffer[32];
+  sprintf(buffer, "Lane %1d: %7.3fs", (lane+1), (elapsedTime[lane] / 1000.0));
+  tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);
+  tft.drawString(buffer, 60, 70 + (finishedRacerCount * 30), FONT_SIZE);
 }
 
 
@@ -142,7 +158,10 @@ public:
         digitalWrite(finishLineLED[i], LOW);
       }
       Serial.println("race START");
+      heatNumber++;
+      digitalWrite(raceActiveLED, HIGH);
       displayGo();
+      displayHeatNumber();
     } else if (strcmp(buffer, "START_GATE_CLOSED") == 0) {
       gateOpen = false;
       if (allFinished) {
@@ -283,6 +302,8 @@ String getDefaultMacAddress() {
     digitalWrite(finishLineLED[i], LOW);
   }
   pinMode(readyLED, OUTPUT);
+  pinMode(raceActiveLED, OUTPUT);
+  digitalWrite(raceActiveLED, LOW);
   resetSwitch.setDebounceTime(50);
   if (commEstablished == false) {
     displayToggleGate();
@@ -301,10 +322,7 @@ void loop() {
       // Serial.println();
       digitalWrite(finishLineLED[i], HIGH);
       finishedRacerCount++;
-      char buffer[32];
-      sprintf(buffer, "Lane %1d: %7.3fs", (i+1), (elapsedTime[i] / 1000.0));
-      tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);
-      tft.drawCentreString(buffer, 150, 70 + (finishedRacerCount * 30), FONT_SIZE);
+      displayLaneTime(i);
     }
   }
 
@@ -346,6 +364,9 @@ void loop() {
   }
 
   if ((allFinished) && (scoresReported == false)) { // report scores
+    Serial.println("race FINISHED");
+    digitalWrite(raceActiveLED, LOW);
+    Serial.print("Heat: "); Serial.println(heatNumber);
     for (int i=0 ; i < LANES ; i++) {
       Serial.print("Lane: "); Serial.print(i+1); Serial.print(", Time: "); Serial.print(elapsedTime[i] / 1000.0); Serial.println("s");
     }
