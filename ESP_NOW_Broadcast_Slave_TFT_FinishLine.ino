@@ -131,7 +131,7 @@ public:
 
     char *buffer = (char*)data;
 
-    if (strcmp(buffer, "START_GATE_OPENED") == 0) {
+    if ((strcmp(buffer, "START_GATE_OPENED") == 0) && (allFinished == false)) {
       digitalWrite(readyLED, LOW);
       startTimeMillis = millis();
       gateOpen = true;
