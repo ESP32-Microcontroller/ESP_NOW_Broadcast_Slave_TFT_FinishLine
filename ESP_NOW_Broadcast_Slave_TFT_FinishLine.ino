@@ -23,6 +23,7 @@ TFT_eSPI tft = TFT_eSPI();
 #define FINISHED 2
 #define RELOADING 3
 #define LANES 2
+#define MAX_HEATS 256
 
 // Touchscreen pins
 #define XPT2046_IRQ 48   // T_IRQ
@@ -37,6 +38,7 @@ XPT2046_Touchscreen touchscreen(XPT2046_CS, XPT2046_IRQ);
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 240
 #define FONT_SIZE 4
+#define REPEATED_TOUCH_TOLERANCE 1000
 
 int laneStatus[LANES];
 long elapsedTime[LANES];
@@ -50,7 +52,11 @@ bool allAtGate = false;
 bool commEstablished = false;
 ezButton resetSwitch(3);
 int finishedRacerCount;
-int heatNumber = 0;
+int heatNumber = -1;
+int heatData[MAX_HEATS][LANES]; // elapsed millis
+long lastTouchMillis = millis() - REPEATED_TOUCH_TOLERANCE;
+
+
 
 // Touchscreen coordinates: (x, y) and pressure (z)
 int x, y, z;
@@ -110,7 +116,7 @@ void displayGo() {
 void displayHeatNumber() {
   tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);
   char buffer[32];
-  sprintf(buffer, "Heat: %1d", heatNumber);
+  sprintf(buffer, "Heat: %1d", heatNumber+1);
   tft.drawString(buffer, 45, 70, FONT_SIZE);
 }
 
@@ -121,6 +127,13 @@ void displayLaneTime(int lane) {
   tft.drawString(buffer, 60, 70 + (finishedRacerCount * 30), FONT_SIZE);
 }
 
+void displayMaxHeatsReached() {
+  tft.fillRect(0, 0, 320, 65, TFT_BLACK);
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.drawString("Heat data limit reached.", 80, 5, 2);
+  tft.drawString("Resetting to heat 0.", 80, 25, 2);
+  tft.drawString("Press reset to continue.", 80, 45, 2);
+}
 
 // Creating a new class that inherits from the ESP_NOW_Peer class is required.
 class ESP_NOW_Peer_Class : public ESP_NOW_Peer {
@@ -228,8 +241,21 @@ String getDefaultMacAddress() {
   return mac;
 }
 
+void dumpHeatLog() {
+  Serial.print("# Heat log, total heats: "); Serial.println(heatNumber+1);
+  for (int heat = 0 ; heat <= heatNumber ; heat++ ) {
+    Serial.print("#   Heat: "); Serial.println(heat+1);
+    for (int lane = 0 ; lane < LANES ; lane++) {
+      char timeSeconds[16];
+      sprintf(timeSeconds, "%1.3f", heatData[heat][lane] / 1000.0);
+      Serial.print("#     Lane: "); Serial.print(lane+1); Serial.print(", Time: "); Serial.print(timeSeconds); Serial.println("s");
+    }
+  }
+  Serial.println("# End of heat log");
+}
+
 /* Main */
- void setup() {
+void setup() {
   
   Serial.begin(115200);
   touchscreenSPI.begin(XPT2046_CLK, XPT2046_MISO, XPT2046_MOSI, XPT2046_CS);
@@ -320,6 +346,7 @@ void loop() {
       elapsedTime[i] = now - startTimeMillis;
       // Serial.print("Time: "); Serial.println(elapsedTime[i] / 1000.0);
       // Serial.println();
+      heatData[heatNumber][i] = elapsedTime[i];
       digitalWrite(finishLineLED[i], HIGH);
       finishedRacerCount++;
       displayLaneTime(i);
@@ -366,11 +393,18 @@ void loop() {
   if ((allFinished) && (scoresReported == false)) { // report scores
     Serial.println("race FINISHED");
     digitalWrite(raceActiveLED, LOW);
-    Serial.print("Heat: "); Serial.println(heatNumber);
+    Serial.print("Heat: "); Serial.println(heatNumber+1);
     for (int i=0 ; i < LANES ; i++) {
-      Serial.print("Lane: "); Serial.print(i+1); Serial.print(", Time: "); Serial.print(elapsedTime[i] / 1000.0); Serial.println("s");
+      char timeSeconds[16];
+      sprintf(timeSeconds, "%1.3f", elapsedTime[i] / 1000.0);
+      Serial.print("  Lane: "); Serial.print(i+1); Serial.print(", Time: "); Serial.print(timeSeconds); Serial.println("s");
     }
     scoresReported = true;
+    if (heatNumber + 1 == MAX_HEATS) {
+      dumpHeatLog();
+      displayMaxHeatsReached();
+      heatNumber = -1;
+    }
   }
 
   // Checks if Touchscreen was touched, and prints X, Y and Pressure (Z) info on the TFT display and Serial Monitor
@@ -379,7 +413,13 @@ void loop() {
     x = map(p.x, 200, 3700, 1, SCREEN_WIDTH);
     y = map(p.y, 240, 3800, 1, SCREEN_HEIGHT);
     z = p.z;
-    printTouchToSerial(x, y, z);
+    long now = millis();
+    if (now - lastTouchMillis > REPEATED_TOUCH_TOLERANCE) {
+      dumpHeatLog();
+      lastTouchMillis = now;
+    }
+
+    // printTouchToSerial(x, y, z);
     // printTouchToDisplay(x, y, z);
     // delay(100);
   }
