@@ -22,7 +22,6 @@ TFT_eSPI tft = TFT_eSPI();
 #define RACING 1
 #define FINISHED 2
 #define RELOADING 3
-#define LANES 2
 #define MAX_HEATS 256
 
 // Touchscreen pins
@@ -40,10 +39,11 @@ XPT2046_Touchscreen touchscreen(XPT2046_CS, XPT2046_IRQ);
 #define FONT_SIZE 4
 #define REPEATED_TOUCH_TOLERANCE 1000
 
+#define LANES 4
 int laneStatus[LANES];
 long elapsedTime[LANES];
-int breakBeamPin[LANES] = {6, 7};
-int finishLineLED[LANES] = {9, 10};
+int breakBeamPin[LANES] = {6, 7, 18, 16};
+int finishLineLED[LANES] = {9, 10, 46, 17};
 int readyLED = 11;
 int raceActiveLED = 8;
 bool scoresReported = false;
@@ -341,11 +341,8 @@ void loop() {
   for (int i=0 ; i < LANES ; i++) {
     if ((analogRead(breakBeamPin[i]) < 1000) && (laneStatus[i] == RACING)) {
       laneStatus[i] = FINISHED;
-      // Serial.print("Lane "); Serial.print(i); Serial.println(" FINISHED");
       long now = millis();
       elapsedTime[i] = now - startTimeMillis;
-      // Serial.print("Time: "); Serial.println(elapsedTime[i] / 1000.0);
-      // Serial.println();
       heatData[heatNumber][i] = elapsedTime[i];
       digitalWrite(finishLineLED[i], HIGH);
       finishedRacerCount++;
