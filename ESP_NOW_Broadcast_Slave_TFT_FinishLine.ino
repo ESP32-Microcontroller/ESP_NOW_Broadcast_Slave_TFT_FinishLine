@@ -52,11 +52,37 @@ bool allAtGate = false;
 bool commEstablished = false;
 ezButton resetSwitch(3);
 int finishedRacerCount;
-int heatNumber = -1;
+int heatNumber = 0;
 int heatData[MAX_HEATS][LANES]; // elapsed millis
 long lastTouchMillis = millis() - REPEATED_TOUCH_TOLERANCE;
 
+// set this to true if using racer names, time averaging, and finals
+// set this to false if we're just running individual races
+bool structuredRace = true;
 
+// Racer registration
+#define NUMBER_OF_RACERS 7
+#define NUMBER_OF_TIMES 1
+#define NUMBER_OF_RACERS_IN_FINALS 4 // this number should be le to LANES and le to NUMBER_OF_RACERS
+String racerName[NUMBER_OF_RACERS] = {
+  "Happy",
+  "Sleepy",
+  "Sneezy",
+  "Doc",
+  "Dopey",
+  "Bashful",
+  "Grumpy"
+};
+int regularHeats = ceil((NUMBER_OF_RACERS * NUMBER_OF_TIMES) / (LANES * 1.0));
+bool isFinals = false; // change to true when running finals
+
+int getRacerNumber(int heat, int lane) {
+  return ((heat * LANES) + lane) % NUMBER_OF_RACERS;
+}
+
+String getRacerName(int heat, int lane) {
+  return racerName[getRacerNumber(heat, lane)];
+}
 
 // Touchscreen coordinates: (x, y) and pressure (z)
 int x, y, z;
@@ -106,6 +132,31 @@ void displayReady() {
 void displaySet() {
   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
   tft.drawString("Set...", 150, 30, FONT_SIZE);
+  tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);
+  displayHeatNumber();
+  if (structuredRace) { // map lanes to names
+    // TODO: how do we know if this is the last heat before finals?
+    // TODO: how do we know if there are fewer remaining racers than lanes?
+
+    // how many lanes are we using for this heat?
+    int lanesUsedInThisHeat = LANES;
+    if (heatNumber == regularHeats) {
+      lanesUsedInThisHeat = (NUMBER_OF_RACERS * NUMBER_OF_TIMES) - ((regularHeats - 1) * LANES);
+    } else if (heatNumber > regularHeats) {
+      // this is the finals
+      isFinals = true;
+    }
+    Serial.print("lanesUsedInThisHeat: "); Serial.println(lanesUsedInThisHeat);
+
+    for (int lane=0 ; lane < lanesUsedInThisHeat ; lane++) {
+      int racerNumber = getRacerNumber(heatNumber - 1, lane);
+      String racerName = getRacerName(heatNumber - 1, lane);
+      // "Lane 1: <name1>" etc...
+      char buffer[32];
+      sprintf(buffer, "%1d: %s", lane+1, racerName);
+      tft.drawString(buffer, 60, 70 + ((lane+1) * 30), FONT_SIZE);
+    }
+  }
 }
 
 void displayGo() {
@@ -116,7 +167,7 @@ void displayGo() {
 void displayHeatNumber() {
   tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);
   char buffer[32];
-  sprintf(buffer, "Heat: %1d", heatNumber+1);
+  sprintf(buffer, "Heat: %1d", heatNumber);
   tft.drawString(buffer, 45, 70, FONT_SIZE);
 }
 
@@ -171,10 +222,8 @@ public:
         digitalWrite(finishLineLED[i], LOW);
       }
       Serial.println("race START");
-      heatNumber++;
       digitalWrite(raceActiveLED, HIGH);
       displayGo();
-      displayHeatNumber();
     } else if (strcmp(buffer, "START_GATE_CLOSED") == 0) {
       gateOpen = false;
       if (allFinished) {
@@ -184,12 +233,15 @@ public:
         }
         tft.fillScreen(TFT_BLACK);
         displayReady();
-        displaySet();
+        displaySet(); // heatNumber is still set to the previous heat, so we'll send displaySet the next heatNumber
         digitalWrite(readyLED, HIGH);
       }
       if (allAtGate) {
         tft.fillScreen(TFT_BLACK);
         displayReady();
+        Serial.print("allAtGate: Incrementing heatNumber from ");Serial.print(heatNumber);
+        heatNumber++;
+        Serial.print(" to ");Serial.println(heatNumber);
         displaySet();
         digitalWrite(readyLED, HIGH);
       }
@@ -352,13 +404,16 @@ void loop() {
 
   resetSwitch.loop();
   if ((resetSwitch.isPressed()) && (commEstablished)) {
-    digitalWrite(readyLED, HIGH);
+    digitalWrite(readyLED, HIGH); // TODO: Can we remove one of these?  Seems like a duplicate.
     for (int i=0 ; i < LANES ; i++) {
       digitalWrite(finishLineLED[i], LOW);
       laneStatus[i] = AT_GATE;
     }
     tft.fillScreen(TFT_BLACK);
     displayReady();
+    Serial.print("resetSwitch: Incrementing heatNumber from ");Serial.print(heatNumber);
+    heatNumber++;
+    Serial.print(" to ");Serial.println(heatNumber);
     displaySet();
     digitalWrite(readyLED, HIGH);
   }
