@@ -62,17 +62,17 @@ long lastTouchMillis = millis() - REPEATED_TOUCH_TOLERANCE;
 bool structuredRace = true;
 
 // Racer registration
-#define NUMBER_OF_RACERS 7
-#define NUMBER_OF_TIMES 2
+#define NUMBER_OF_RACERS 3
+#define NUMBER_OF_TIMES 3
 // int NUMBER_OF_RACERS_IN_FINALS = min(LANES, NUMBER_OF_RACERS); // this number should be le to LANES and le to NUMBER_OF_RACERS
 String racerName[NUMBER_OF_RACERS] = {
     "Happy"
   , "Sleepy"
   , "Sneezy"
-  , "Doc"
-  , "Dopey"
-  , "Bashful"
-  , "Grumpy"
+  // , "Doc"
+  // , "Dopey"
+  // , "Bashful"
+  // , "Grumpy"
 };
 int lanesUsedInThisHeat = min(LANES, NUMBER_OF_RACERS);
 int regularHeats = ceil((NUMBER_OF_RACERS * NUMBER_OF_TIMES) / (lanesUsedInThisHeat * 1.0));
@@ -84,7 +84,7 @@ int racerAverageIndex[NUMBER_OF_RACERS];
 int laneAssignment[LANES];
 
 int getRacerNumber(int heat, int lane) {
-  return ((heat * LANES) + lane) % NUMBER_OF_RACERS;
+  return ((heat * lanesUsedInThisHeat) + lane) % NUMBER_OF_RACERS;
 }
 
 String getRacerName(int heat, int lane) {
@@ -172,11 +172,17 @@ void displaySet() {
       int racerNumber;
       String name;
       if (isFinals) {
+        Serial.println("isFinals: true");
         racerNumber = racerAverageIndex[lane];
         name = racerName[racerAverageIndex[lane]];
       } else {
         racerNumber = getRacerNumber(heatNumber - 1, lane);
         name = getRacerName(heatNumber - 1, lane);
+        Serial.print("# isFinals: false");
+        Serial.print(", heatNumber: "); Serial.print(heatNumber);
+        Serial.print(", racerNumber: "); Serial.print(racerNumber);
+        Serial.print(", name: ");Serial.print(name);
+        Serial.print(", lane: "); Serial.println(lane);
       }
       Serial.print("  Lane: "); Serial.print(lane+1); Serial.print(", name: "); Serial.print(name);
       if (isFinals) {
