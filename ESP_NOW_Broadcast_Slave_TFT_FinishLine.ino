@@ -21,7 +21,7 @@ TFT_eSPI tft = TFT_eSPI();
 #define RACING 1
 #define FINISHED 2
 #define RELOADING 3
-#define MAX_HEATS 256
+// #define MAX_HEATS 256
 
 // Touchscreen pins
 #define XPT2046_IRQ 48   // T_IRQ
@@ -53,7 +53,7 @@ ezButton resetSwitch(3);
 int finishedRacerCount;
 int finishLineCrossingOrder[LANES];
 int heatNumber = 0;
-int heatData[MAX_HEATS][LANES]; // elapsed millis
+// int heatData[MAX_HEATS][LANES]; // elapsed millis
 long lastTouchMillis = millis() - REPEATED_TOUCH_TOLERANCE;
 String csv;
 
@@ -147,68 +147,55 @@ void displaySet() {
   tft.drawString("Set...", 150, 30, FONT_SIZE);
   tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);
   displayHeatNumber();
-  if (structuredRace) { // map lanes to names
-    // TODO: how do we know if this is the last heat before finals?
-    // TODO: how do we know if there are fewer remaining racers than lanes?
 
-    // how many lanes are we using for this heat?
-    lanesUsedInThisHeat = min(LANES, NUMBER_OF_RACERS);
-    // Serial.print("########## lanesUsedInThisHeat: "); Serial.println(lanesUsedInThisHeat);
-    if (heatNumber == regularHeats) {
-      if (NUMBER_OF_RACERS < LANES) {
-        lanesUsedInThisHeat = NUMBER_OF_RACERS;
-      } else {
-        lanesUsedInThisHeat = (NUMBER_OF_RACERS * NUMBER_OF_TIMES) - ((regularHeats - 1) * LANES);
-      }
-      Serial.print("########## (last qualifier) lanesUsedInThisHeat: "); Serial.println(lanesUsedInThisHeat);
-      isFinals = false;
-    } else if (heatNumber == regularHeats + 1) {
-      // this is the finals
-      isFinals = true;
+  lanesUsedInThisHeat = min(LANES, NUMBER_OF_RACERS);
+  if (heatNumber == regularHeats) {
+    if (NUMBER_OF_RACERS < LANES) {
+      lanesUsedInThisHeat = NUMBER_OF_RACERS;
     } else {
-      isFinals = false;
+      lanesUsedInThisHeat = (NUMBER_OF_RACERS * NUMBER_OF_TIMES) - ((regularHeats - 1) * LANES);
     }
+    Serial.print("########## (last qualifier) lanesUsedInThisHeat: "); Serial.println(lanesUsedInThisHeat);
+    isFinals = false;
+  } else if (heatNumber == regularHeats + 1) {
+    isFinals = true;
+  } else {
+    isFinals = false;
+  }
 
-    Serial.print("##### Heat: "); Serial.print(heatNumber);
+  Serial.print("##### Heat: "); Serial.print(heatNumber);
+  if (isFinals) {
+    Serial.print("  Finals!!!  ");
+  }
+  Serial.println("    Lane assignments:");
+  for (int lane=0 ; lane < lanesUsedInThisHeat ; lane++) {
+    int racerNumber;
+    String name;
     if (isFinals) {
-      Serial.print("  Finals!!!  ");
+      racerNumber = racerAverageIndex[lane];
+      name = racerName[racerAverageIndex[lane]];
+    } else {
+      racerNumber = getRacerNumber(heatNumber - 1, lane);
+      name = getRacerName(heatNumber - 1, lane);
     }
-    Serial.println("    Lane assignments:");
-    for (int lane=0 ; lane < lanesUsedInThisHeat ; lane++) {
-      int racerNumber;
-      String name;
-      if (isFinals) {
-//        Serial.println("isFinals: true");
-        racerNumber = racerAverageIndex[lane];
-        name = racerName[racerAverageIndex[lane]];
-      } else {
-        racerNumber = getRacerNumber(heatNumber - 1, lane);
-        name = getRacerName(heatNumber - 1, lane);
-//        Serial.print("# isFinals: false");
-//        Serial.print(", heatNumber: "); Serial.print(heatNumber);
-//        Serial.print(", racerNumber: "); Serial.print(racerNumber);
-//        Serial.print(", name: ");Serial.print(name);
-//        Serial.print(", lane: "); Serial.println(lane);
-      }
-      Serial.print("  Lane: "); Serial.print(lane+1); Serial.print(", name: "); Serial.print(name);
-      if (isFinals) {
-        char buffer[16];
-        sprintf(buffer, "%1.3f", racerAverage[lane] / 1000.0);
-        Serial.print(" ["); Serial.print(buffer); Serial.print("s]");
-      }
-      Serial.print(", racerNumber: ");Serial.println(racerNumber);
-      laneAssignment[lane] = racerNumber;
+    Serial.print("  Lane: "); Serial.print(lane+1); Serial.print(", name: "); Serial.print(name);
+    if (isFinals) {
+      char buffer[16];
+      sprintf(buffer, "%1.3f", racerAverage[lane] / 1000.0);
+      Serial.print(" ["); Serial.print(buffer); Serial.print("s]");
+    }
+    Serial.print(", racerNumber: ");Serial.println(racerNumber);
+    laneAssignment[lane] = racerNumber;
 
-      char buffer[32];
-      sprintf(buffer, "%1d: %s", lane+1, name);
-      tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);
-      tft.drawString(buffer, 5, 70 + ((lane+1) * 30), FONT_SIZE);
+    char buffer[32];
+    sprintf(buffer, "%1d: %s", lane+1, name);
+    tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);
+    tft.drawString(buffer, 5, 70 + ((lane+1) * 30), FONT_SIZE);
 
-      if (isFinals) {
-        sprintf(buffer, "[%1.3fs]", racerAverage[lane] / 1000.0);
-        tft.setTextColor(TFT_ORANGE, TFT_BLACK);
-        tft.drawString(buffer, 175, 70 + ((lane+1) * 30), FONT_SIZE);
-      }
+    if (isFinals) {
+      sprintf(buffer, "[%1.3fs]", racerAverage[lane] / 1000.0);
+      tft.setTextColor(TFT_ORANGE, TFT_BLACK);
+      tft.drawString(buffer, 175, 70 + ((lane+1) * 30), FONT_SIZE);
     }
   }
 }
@@ -236,39 +223,24 @@ void displayHeatNumber() {
   }
 }
 
-void displayLaneTime_old(int lane) {
-  char buffer[32];
-  sprintf(buffer, "Lane %1d: %7.3fs", (lane+1), (elapsedTime[lane] / 1000.0));
-  tft.setTextColor(TFT_SKYBLUE, TFT_BLACK);
-  tft.drawString(buffer, 60, 70 + (finishedRacerCount * 30), FONT_SIZE);
-}
-
 void displayLaneTime(int lane) {
   String place;
   tft.setTextColor(TFT_SILVER, TFT_BLACK);
   if (finishedRacerCount == 1) {
-    place = "1st    ";
+    place = " 1st    ";
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
   } else if (finishedRacerCount == 2) {
-    place = "2nd    ";
+    place = " 2nd    ";
   } else if (finishedRacerCount == 3) {
-    place = "3rd    ";
+    place = " 3rd    ";
   } else {
-    place = "4th    ";
+    place = " 4th    ";
   }
   char buffer[32];
   sprintf(buffer, "%s", place);
   tft.drawString(buffer, 175, 70 + ((lane+1) * 30), FONT_SIZE);
   sprintf(buffer, "%7.3fs", (elapsedTime[lane] / 1000.0));
   tft.drawString(buffer, 225, 70 + ((lane+1) * 30), FONT_SIZE);
-}
-
-void displayMaxHeatsReached() {
-  tft.fillRect(0, 0, 320, 65, TFT_BLACK);
-  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-  tft.drawString("Heat data limit reached.", 80, 5, 2);
-  tft.drawString("Resetting to heat 0.", 80, 25, 2);
-  tft.drawString("Press reset to continue.", 80, 45, 2);
 }
 
 // Creating a new class that inherits from the ESP_NOW_Peer class is required.
@@ -319,24 +291,19 @@ public:
         }
         tft.fillScreen(TFT_BLACK);
         displayReady();
-        // displaySet();
         digitalWrite(readyLED, HIGH);
       }
       if (allAtGate) {
         tft.fillScreen(TFT_BLACK);
         displayReady();
         Serial.println("######################## New Heat ########################");
-        // Serial.print("allAtGate: Incrementing heatNumber from ");Serial.print(heatNumber);
         heatNumber++;
-        // Serial.print(" to ");Serial.println(heatNumber);
         displaySet();
         digitalWrite(readyLED, HIGH);
       }
     }
   }
 };
-
-
 
 // List of all the masters. It will be populated when a new master is registered
 std::vector<ESP_NOW_Peer_Class> masters;
@@ -366,31 +333,14 @@ void register_new_master(const esp_now_recv_info_t *info, const uint8_t *data, i
 }
 
 String getDefaultMacAddress() {
-
   String mac = "";
-
   unsigned char mac_base[6] = {0};
-
   if (esp_efuse_mac_get_default(mac_base) == ESP_OK) {
     char buffer[18];  // 6*2 characters for hex + 5 characters for colons + 1 character for null terminator
     sprintf(buffer, "%02X:%02X:%02X:%02X:%02X:%02X", mac_base[0], mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
     mac = buffer;
   }
-
   return mac;
-}
-
-void dumpHeatLog() {
-  Serial.print("# Heat log, total heats: "); Serial.println(heatNumber+1);
-  for (int heat = 0 ; heat < heatNumber ; heat++ ) {
-    Serial.print("#   Heat: "); Serial.println(heat+1);
-    for (int lane = 0 ; lane < LANES ; lane++) {
-      char timeSeconds[16];
-      sprintf(timeSeconds, "%1.3f", heatData[heat][lane] / 1000.0);
-      Serial.print("#     Lane: "); Serial.print(lane+1); Serial.print(", Time: "); Serial.print(timeSeconds); Serial.println("s");
-    }
-  }
-  Serial.println("# End of heat log");
 }
 
 void calculateAveragesAndSort() {
@@ -445,26 +395,8 @@ void calculateAveragesAndSort() {
   }
 }
 
-void dumpRacerData() {
-  Serial.println("# Racer log");
-  for (int racer = 0 ; racer < NUMBER_OF_RACERS ; racer++) {
-    float sum = 0;
-    Serial.print(racer);Serial.print(":");Serial.println(racerName[racer]);
-    for (int i=0 ; i < NUMBER_OF_TIMES ; i++) {
-      char buffer[16];
-      sprintf(buffer, "%1.3f", racerData[racer][i] / 1000.0);
-      Serial.print("#\t");Serial.print(i);Serial.print(": ");Serial.println(buffer);
-      sum += racerData[racer][i];
-    }
-    char buffer[16];
-    sprintf(buffer, "%1.3f", (sum / NUMBER_OF_TIMES) / 1000.0);
-    Serial.print("#\tAverage: ");Serial.println(buffer);
-  }
-}
-
 /* Main */
 void setup() {
-  
   Serial.begin(115200);
   touchscreenSPI.begin(XPT2046_CLK, XPT2046_MISO, XPT2046_MOSI, XPT2046_CS);
   touchscreen.begin(touchscreenSPI);
@@ -475,8 +407,6 @@ void setup() {
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   int centerX = SCREEN_WIDTH / 2;
   int centerY = SCREEN_HEIGHT / 2;
-  // tft.drawCentreString("Ready, set, go!", centerX, 30, FONT_SIZE);
-  // tft.drawCentreString("Touch screen to test", centerX, centerY, FONT_SIZE);
 
   // Serial.print("TFT_MISO: "); Serial.println(TFT_MISO);
   // Serial.print("TFT_MOSI: "); Serial.println(TFT_MOSI);
@@ -530,6 +460,7 @@ void setup() {
 
   Serial.println("Setup complete. Waiting for a master to broadcast a message...");
 
+  // initializa the race
   for (int i=0 ; i < LANES ; i++) {
     laneStatus[i] = AT_GATE;
     pinMode(finishLineLED[i], OUTPUT);
@@ -548,7 +479,6 @@ void setup() {
       racerData[racer][i] = 0;
     }
   }
-  
 }
 
 void loop() {
@@ -558,7 +488,6 @@ void loop() {
       laneStatus[i] = FINISHED;
       long now = millis();
       elapsedTime[i] = now - startTimeMillis;
-      heatData[heatNumber-1][i] = elapsedTime[i];
       int racerNumber = laneAssignment[i];
       racerData[racerNumber][racerDataIndex[racerNumber]] = elapsedTime[i];
       racerDataIndex[racerNumber]++;
@@ -584,7 +513,6 @@ void loop() {
     displaySet();
     digitalWrite(readyLED, HIGH);
   }
-
 
   // check to see if all cars crossed the finish line
   allFinished = false;
@@ -642,15 +570,10 @@ void loop() {
       Serial.println("########### end of csv data ###########");
     }
     scoresReported = true;
-    if (heatNumber + 1 == MAX_HEATS) {
-      dumpHeatLog();
-      displayMaxHeatsReached();
-      heatNumber = -1;
-    }
-    if (heatNumber == regularHeats) {
-      calculateAveragesAndSort();
-    }
 
+    if (heatNumber == regularHeats) {
+      calculateAveragesAndSort(); // modifies the global csv
+    }
   }
 
   // Checks if Touchscreen was touched, and prints X, Y and Pressure (Z) info on the TFT display and Serial Monitor
@@ -661,16 +584,11 @@ void loop() {
     z = p.z;
     long now = millis();
     if (now - lastTouchMillis > REPEATED_TOUCH_TOLERANCE) {
-      dumpHeatLog();
-      dumpRacerData();
-      // calculateAveragesAndSort();
+      // what to do if the screen is touched?
       lastTouchMillis = now;
     }
-
     // printTouchToSerial(x, y, z);
     // printTouchToDisplay(x, y, z);
     // delay(100);
   }
-
-
 }
